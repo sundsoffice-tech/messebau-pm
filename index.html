@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messebau Projektmanagement – DB</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Messebau Projektmanagement</h1>
+    </header>
+    <!-- Navigationsleiste -->
+    <nav>
+        <ul>
+            <li><a href="index.html">Übersicht</a></li>
+            <li><a href="create.html">Neues Projekt</a></li>
+            <li><a href="open_tasks.html">Aufgaben</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section id="alerts" class="hidden"></section>
+        <section id="projects">
+            <h2>Projektübersicht</h2>
+            <p>Hier siehst du alle Projekte mit ihrem Status und Anzahl offener Aufgaben.</p>
+            <div class="project-filters">
+                <label for="project-search">Suche:</label>
+                <input type="text" id="project-search" placeholder="Projekt- oder Kundenname">
+            </div>
+            <table id="projects-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Kunde</th>
+                        <th>Messe</th>
+                        <th>Standgröße</th>
+                        <th>Status</th>
+                        <th>Offene Aufgaben</th>
+                        <th>Nächster Schritt</th>
+                        <th>Fällig bis</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+        <!-- Detailansicht -->
+        <section id="project-detail" class="hidden">
+            <div class="content">
+                <h2>Projekt Details</h2>
+                <div id="detail-content"></div>
+                <button id="close-detail">Schließen</button>
+            </div>
+        </section>
+    </main>
+    <script src="overview.js"></script>
+</body>
+</html>

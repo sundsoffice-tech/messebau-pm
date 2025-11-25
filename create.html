@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neues Projekt – Messebau</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Messebau Projektmanagement</h1>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="index.html">Übersicht</a></li>
+            <li><a href="create.html">Neues Projekt</a></li>
+            <li><a href="open_tasks.html">Aufgaben</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section id="alerts" class="hidden"></section>
+        <section id="new-project">
+            <h2>Neues Projekt anlegen</h2>
+            <form id="project-form">
+                <div class="form-group">
+                    <label for="projName">Projektname</label>
+                    <input type="text" id="projName" required>
+                </div>
+                <div class="form-group">
+                    <label for="customer">Kunde</label>
+                    <input type="text" id="customer" required>
+                </div>
+                <div class="form-group">
+                    <label for="fair">Messe / Standort</label>
+                    <input type="text" id="fair">
+                </div>
+                <div class="form-group">
+                    <label for="size">Standgröße (m²)</label>
+                    <input type="number" id="size" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="date">Datum</label>
+                    <input type="date" id="date">
+                </div>
+                <div class="form-group">
+                    <label for="priority">Priorität</label>
+                    <select id="priority">
+                        <option value="hoch">Hoch</option>
+                        <option value="mittel">Mittel</option>
+                        <option value="niedrig">Niedrig</option>
+                    </select>
+                </div>
+                <button type="submit">Projekt speichern</button>
+            </form>
+        </section>
+    </main>
+    <script src="create.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aufgaben – Messebau</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Messebau Projektmanagement</h1>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="index.html">Übersicht</a></li>
+            <li><a href="create.html">Neues Projekt</a></li>
+            <li><a href="open_tasks.html">Aufgaben</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section id="alerts" class="hidden"></section>
+        <h2>Alle Aufgaben</h2>
+        <p>Diese Kanban‑Ansicht zeigt dir alle Aufgaben aus allen Projekten nach ihrem Status sortiert.</p>
+        <!-- Filterleiste für Aufgaben -->
+        <div class="task-filters">
+            <label for="status-filter">Status:</label>
+            <select id="status-filter">
+                <option value="all">Alle</option>
+                <option value="ToDo">Offen</option>
+                <option value="InBearbeitung">In Bearbeitung</option>
+                <option value="Done">Erledigt</option>
+            </select>
+            <label for="search-task" style="margin-left:1rem;">Suche:</label>
+            <input type="text" id="search-task" placeholder="Titel oder Projekt">
+        </div>
+        <div id="kanban" class="kanban-board"></div>
+    </main>
+    <script src="open_tasks.js"></script>
+</body>
+</html>

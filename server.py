@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Einfache HTTP‑Serveranwendung für das Messebau‑Projektmanagement. Der Server
-bietet sowohl eine REST‑API für Projekte (CRUD) als auch eine Auslieferung
-der statischen Frontend‑Dateien. Die Projekte werden in einer SQLite‑Datenbank
+Einfache HTTP-Serveranwendung für das Messebau-Projektmanagement. Der Server
+bietet sowohl eine REST-API für Projekte (CRUD) als auch eine Auslieferung
+der statischen Frontend-Dateien. Die Projekte werden in einer SQLite-Datenbank
 gespeichert, sodass Änderungen persistent sind.
 
-Zum Starten des Servers:
+Zum Starten des Servers lokal:
     python server.py
 
 Anschließend die Anwendung im Browser unter http://localhost:8000 öffnen.
@@ -17,21 +17,21 @@ import os
 import sqlite3
 from urllib.parse import urlparse
 
-PORT = 8000
+# Port:
+# - lokal: default 8000
+# - bei Render: Port wird über Umgebungsvariable PORT gesetzt
+PORT = int(os.environ.get("PORT", 8000))
+
 DB_FILE = os.path.join(os.path.dirname(__file__), 'projects.db')
 STATIC_DIR = os.path.dirname(__file__)
 
 
 def init_db():
     """
-    Initialisiert die SQLite‑Datenbank und legt die Tabellen an.
+    Initialisiert die SQLite-Datenbank und legt die Tabellen an.
 
     Bei jedem Start des Servers wird sichergestellt, dass die Tabellen
-    "projects" und "tasks" existieren. Die "tasks"‑Tabelle enthält
-    zusätzliche Felder wie "assignee" und "priority", um Aufgaben einem
-    Verantwortlichen zuzuordnen und zu priorisieren. Die Tabelle wird
-    idempotent erstellt, d.h. sie wird nur angelegt, wenn sie noch nicht
-    vorhanden ist.
+    "projects" und "tasks" existieren.
     """
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute('PRAGMA foreign_keys = ON')
@@ -73,7 +73,7 @@ def init_db():
 
 
 class ProjectHandler(BaseHTTPRequestHandler):
-    """HTTP‑Handler für API‑ und statische Anfragen."""
+    """HTTP-Handler für API- und statische Anfragen."""
 
     def _set_headers(self, code=200, content_type='application/json'):
         self.send_response(code)
@@ -85,15 +85,17 @@ class ProjectHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_OPTIONS(self):
-        """Behandelt OPTIONS‑Anfragen für CORS."""
+        """Behandelt OPTIONS-Anfragen für CORS."""
         self._set_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
         # API abwickeln
         if path.startswith('/api/'):
             parts = path.strip('/').split('/')  # z.B. ['api','projects','1','tasks']
+
             # /api/projects
             if len(parts) == 2 and parts[1] == 'projects':
                 with sqlite3.connect(DB_FILE) as conn:
@@ -104,13 +106,16 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 self._set_headers()
                 self.wfile.write(json.dumps(data).encode())
                 return
+
             # /api/projects/<id>
             if len(parts) == 3 and parts[1] == 'projects' and parts[2].isdigit():
                 project_id = parts[2]
                 with sqlite3.connect(DB_FILE) as conn:
                     conn.execute('PRAGMA foreign_keys = ON')
                     conn.row_factory = sqlite3.Row
-                    row = conn.execute('SELECT * FROM projects WHERE id=?', (project_id,)).fetchone()
+                    row = conn.execute(
+                        'SELECT * FROM projects WHERE id=?', (project_id,)
+                    ).fetchone()
                     if row:
                         self._set_headers()
                         self.wfile.write(json.dumps(dict(row)).encode())
@@ -118,20 +123,24 @@ class ProjectHandler(BaseHTTPRequestHandler):
                         self._set_headers(404)
                         self.wfile.write(json.dumps({'error': 'Projekt nicht gefunden'}).encode())
                 return
+
             # /api/projects/<id>/tasks
             if len(parts) == 4 and parts[1] == 'projects' and parts[2].isdigit() and parts[3] == 'tasks':
                 project_id = parts[2]
                 with sqlite3.connect(DB_FILE) as conn:
                     conn.execute('PRAGMA foreign_keys = ON')
                     conn.row_factory = sqlite3.Row
-                    rows = conn.execute('SELECT * FROM tasks WHERE project_id=?', (project_id,)).fetchall()
+                    rows = conn.execute(
+                        'SELECT * FROM tasks WHERE project_id=?', (project_id,)
+                    ).fetchall()
                     data = [dict(row) for row in rows]
                 self._set_headers()
                 self.wfile.write(json.dumps(data).encode())
                 return
+
             # /api/tasks
             if len(parts) == 2 and parts[1] == 'tasks':
-                # optionaler status filter via query
+                # optionaler Statusfilter via Query
                 params = {}
                 if parsed.query:
                     from urllib.parse import parse_qs
@@ -141,20 +150,25 @@ class ProjectHandler(BaseHTTPRequestHandler):
                     conn.execute('PRAGMA foreign_keys = ON')
                     conn.row_factory = sqlite3.Row
                     if status_filter:
-                        rows = conn.execute('SELECT * FROM tasks WHERE status=?', (status_filter,)).fetchall()
+                        rows = conn.execute(
+                            'SELECT * FROM tasks WHERE status=?', (status_filter,)
+                        ).fetchall()
                     else:
                         rows = conn.execute('SELECT * FROM tasks').fetchall()
                     data = [dict(row) for row in rows]
                 self._set_headers()
                 self.wfile.write(json.dumps(data).encode())
                 return
+
             # /api/tasks/<id>
             if len(parts) == 3 and parts[1] == 'tasks' and parts[2].isdigit():
                 task_id = parts[2]
                 with sqlite3.connect(DB_FILE) as conn:
                     conn.execute('PRAGMA foreign_keys = ON')
                     conn.row_factory = sqlite3.Row
-                    row = conn.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+                    row = conn.execute(
+                        'SELECT * FROM tasks WHERE id=?', (task_id,)
+                    ).fetchone()
                     if row:
                         self._set_headers()
                         self.wfile.write(json.dumps(dict(row)).encode())
@@ -162,11 +176,13 @@ class ProjectHandler(BaseHTTPRequestHandler):
                         self._set_headers(404)
                         self.wfile.write(json.dumps({'error': 'Aufgabe nicht gefunden'}).encode())
                 return
+
             # Sonst
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Ungültige Anfrage'}).encode())
             return
-        # kein API Pfad -> statische Datei
+
+        # kein API-Pfad -> statische Datei
         self.serve_static(path)
 
     def do_POST(self):
@@ -178,6 +194,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
             data = {}
+
         # /api/projects -> neues Projekt anlegen
         if path == '/api/projects':
             fields = (
@@ -195,7 +212,8 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 conn.execute('PRAGMA foreign_keys = ON')
                 cur = conn.cursor()
                 cur.execute(
-                    'INSERT INTO projects (name, customer, fair, size, date, priority, status, nextStep, dueDate) '
+                    'INSERT INTO projects '
+                    '(name, customer, fair, size, date, priority, status, nextStep, dueDate) '
                     'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     fields
                 )
@@ -206,6 +224,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self._set_headers(201)
             self.wfile.write(json.dumps(data_out).encode())
             return
+
         # /api/projects/<id>/tasks -> neue Aufgabe für Projekt
         if path.startswith('/api/projects') and path.endswith('/tasks'):
             parts = path.strip('/').split('/')
@@ -221,7 +240,9 @@ class ProjectHandler(BaseHTTPRequestHandler):
                     conn.execute('PRAGMA foreign_keys = ON')
                     cur = conn.cursor()
                     cur.execute(
-                        'INSERT INTO tasks (project_id, title, description, status, dueDate, assignee, priority) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO tasks '
+                        '(project_id, title, description, status, dueDate, assignee, priority) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?)',
                         (project_id, title, description, status, due_date, assignee, priority)
                     )
                     conn.commit()
@@ -231,6 +252,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 self._set_headers(201)
                 self.wfile.write(json.dumps(data_out).encode())
                 return
+
         # Unbekannter Pfad
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
@@ -244,10 +266,12 @@ class ProjectHandler(BaseHTTPRequestHandler):
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
             data = {}
+
         # Projekt aktualisieren: /api/projects/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'projects' and parts[2].isdigit():
             project_id = parts[2]
-            allowed = ['name', 'customer', 'fair', 'size', 'date', 'priority', 'status', 'nextStep', 'dueDate']
+            allowed = ['name', 'customer', 'fair', 'size', 'date', 'priority',
+                       'status', 'nextStep', 'dueDate']
             set_parts = []
             values = []
             for key in allowed:
@@ -259,9 +283,14 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 with sqlite3.connect(DB_FILE) as conn:
                     conn.execute('PRAGMA foreign_keys = ON')
                     cur = conn.cursor()
-                    cur.execute(f'UPDATE projects SET {", ".join(set_parts)} WHERE id=?', values)
+                    cur.execute(
+                        f'UPDATE projects SET {", ".join(set_parts)} WHERE id=?',
+                        values
+                    )
                     conn.commit()
-                    row = cur.execute('SELECT * FROM projects WHERE id=?', (project_id,)).fetchone()
+                    row = cur.execute(
+                        'SELECT * FROM projects WHERE id=?', (project_id,)
+                    ).fetchone()
                     if row:
                         self._set_headers()
                         self.wfile.write(json.dumps(dict(zip([d[0] for d in cur.description], row))).encode())
@@ -269,11 +298,12 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Projekt nicht gefunden oder keine Felder geändert'}).encode())
             return
+
         # Aufgabe aktualisieren: /api/tasks/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'tasks' and parts[2].isdigit():
             task_id = parts[2]
-            # erlaubte Felder für ein Update inkl. Assignee und Priorität
-            allowed_task = ['title', 'description', 'status', 'dueDate', 'assignee', 'priority']
+            allowed_task = ['title', 'description', 'status',
+                            'dueDate', 'assignee', 'priority']
             set_parts = []
             values = []
             for key in allowed_task:
@@ -285,9 +315,14 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 with sqlite3.connect(DB_FILE) as conn:
                     conn.execute('PRAGMA foreign_keys = ON')
                     cur = conn.cursor()
-                    cur.execute(f'UPDATE tasks SET {", ".join(set_parts)} WHERE id=?', values)
+                    cur.execute(
+                        f'UPDATE tasks SET {", ".join(set_parts)} WHERE id=?',
+                        values
+                    )
                     conn.commit()
-                    row = cur.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+                    row = cur.execute(
+                        'SELECT * FROM tasks WHERE id=?', (task_id,)
+                    ).fetchone()
                     if row:
                         self._set_headers()
                         self.wfile.write(json.dumps(dict(zip([d[0] for d in cur.description], row))).encode())
@@ -295,6 +330,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Aufgabe nicht gefunden oder keine Felder geändert'}).encode())
             return
+
         # Unbekannter Pfad
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
@@ -302,6 +338,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urlparse(self.path)
         parts = parsed.path.strip('/').split('/')
+
         # Projekt löschen: /api/projects/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'projects' and parts[2].isdigit():
             project_id = parts[2]
@@ -316,6 +353,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Projekt nicht gefunden'}).encode())
             return
+
         # Aufgabe löschen: /api/tasks/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'tasks' and parts[2].isdigit():
             task_id = parts[2]
@@ -330,6 +368,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Aufgabe nicht gefunden'}).encode())
             return
+
         # Unbekannter Pfad
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
@@ -341,26 +380,31 @@ class ProjectHandler(BaseHTTPRequestHandler):
             file_path = os.path.join(STATIC_DIR, 'index.html')
             content_type = 'text/html; charset=utf-8'
         else:
-            # Strip leading slash
+            # führenden Slash entfernen
             rel_path = path.lstrip('/')
             file_path = os.path.join(STATIC_DIR, rel_path)
+
+            # Content-Type anhand Dateiendung bestimmen
             if rel_path.endswith('.css'):
                 content_type = 'text/css; charset=utf-8'
             elif rel_path.endswith('.js'):
                 content_type = 'application/javascript; charset=utf-8'
             elif rel_path.endswith('.json'):
                 content_type = 'application/json; charset=utf-8'
+            elif rel_path.endswith('.html'):
+                content_type = 'text/html; charset=utf-8'
             elif rel_path.endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                # Bilder, falls benötigt
                 content_type = 'image/' + rel_path.split('.')[-1]
             else:
-                # Unbekannt -> 404
+                # Datei existiert?
                 if not os.path.isfile(file_path):
                     self._set_headers(404)
                     self.wfile.write(json.dumps({'error': 'Datei nicht gefunden'}).encode())
                     return
+                # Fallback: binär
                 content_type = 'application/octet-stream'
-        # Datei lesen
+
+        # Datei lesen und senden
         try:
             with open(file_path, 'rb') as f:
                 content = f.read()

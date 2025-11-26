@@ -19,20 +19,61 @@
     </nav>
     <main>
         <section id="alerts" class="hidden"></section>
+
         <section id="new-project">
             <h2>Neues Projekt anlegen</h2>
+
             <form id="project-form">
+                <!-- KUNDENBEREICH -->
+                <h3>Kunde</h3>
+
+                <!-- bestehenden Kunden wählen -->
                 <div class="form-group">
-                    <label for="projName">Projektname</label>
+                    <label for="customer-select">Kunde auswählen</label>
+                    <select id="customer-select">
+                        <option value="">– Kunde auswählen –</option>
+                        <option value="new">+ Neuer Kunde …</option>
+                    </select>
+                </div>
+
+                <!-- Felder für NEUEN Kunden (werden per JS ein-/ausgeblendet) -->
+                <div id="new-customer-fields">
+                    <div class="form-group">
+                        <label for="customer-name-new">Kundenname / Firma</label>
+                        <input type="text" id="customer-name-new" placeholder="z.B. Muster GmbH">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-contact">Ansprechpartner</label>
+                        <input type="text" id="customer-contact" placeholder="z.B. Max Mustermann">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-email">E-Mail</label>
+                        <input type="email" id="customer-email" placeholder="kunde@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-phone">Telefonnummer</label>
+                        <input type="tel" id="customer-phone" placeholder="+49 …">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-address">Adresse</label>
+                        <input type="text" id="customer-address" placeholder="Straße, PLZ, Ort">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-design-note">Design-Notiz</label>
+                        <input type="text" id="customer-design-note" placeholder="z.B. Corporate Design Wünsche">
+                    </div>
+                </div>
+
+                <!-- PROJEKTBEREICH -->
+                <h3>Projekt / Messe</h3>
+
+                <div class="form-group">
+                    <label for="projName">Projektname / Messetitel</label>
                     <input type="text" id="projName" required>
                 </div>
                 <div class="form-group">
-                    <label for="customer">Kunde</label>
-                    <input type="text" id="customer" required>
-                </div>
-                <div class="form-group">
                     <label for="fair">Messe / Standort</label>
-                    <input type="text" id="fair">
+                    <input type="text" id="fair" placeholder="z.B. ISH Frankfurt">
                 </div>
                 <div class="form-group">
                     <label for="size">Standgröße (m²)</label>
@@ -50,6 +91,7 @@
                         <option value="niedrig">Niedrig</option>
                     </select>
                 </div>
+
                 <button type="submit">Projekt speichern</button>
             </form>
         </section>

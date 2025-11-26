@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Einfache HTTP-Serveranwendung für das Messebau-Projektmanagement. Der Server
-bietet sowohl eine REST-API für Projekte (CRUD) als auch eine Auslieferung
-der statischen Frontend-Dateien. Die Projekte werden in einer SQLite-Datenbank
-gespeichert, sodass Änderungen persistent sind.
+Einfache HTTP-Serveranwendung für das Messebau-Projektmanagement.
+
+Funktionen:
+- REST-API für Kunden (customers), Projekte/Messen (projects) und Aufgaben (tasks)
+- Auslieferung der statischen Frontend-Dateien (HTML, CSS, JS)
+- Speicherung in SQLite, inkl. Beziehung:
+    Kunde 1:n Projekte, Projekt 1:n Aufgaben
 
 Zum Starten des Servers lokal:
     python server.py
@@ -28,15 +31,34 @@ STATIC_DIR = os.path.dirname(__file__)
 
 def init_db():
     """
-    Initialisiert die SQLite-Datenbank und legt die Tabellen an.
+    Initialisiert die SQLite-Datenbank und legt/aktualisiert die Tabellen:
 
-    Bei jedem Start des Servers wird sichergestellt, dass die Tabellen
-    "projects" und "tasks" existieren.
+    - customers (Kunden)
+    - projects (Projekte/Messen, inkl. customer_id)
+    - tasks (Aufgaben, inkl. assignee, priority)
+
+    Existiert die DB bereits, werden fehlende Spalten per ALTER TABLE ergänzt.
     """
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute('PRAGMA foreign_keys = ON')
         cur = conn.cursor()
-        # Tabelle für Projekte
+
+        # Tabelle für Kunden
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                contact_person TEXT,
+                email TEXT,
+                phone TEXT,
+                address TEXT,
+                design_note TEXT
+            )
+            """
+        )
+
+        # Tabelle für Projekte (Messen)
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS projects (
@@ -53,6 +75,15 @@ def init_db():
             )
             """
         )
+
+        # Prüfen, ob Spalte customer_id vorhanden ist, sonst hinzufügen
+        cur.execute("PRAGMA table_info(projects)")
+        project_cols = [row[1] for row in cur.fetchall()]
+        if 'customer_id' not in project_cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN customer_id INTEGER")
+            # optional FK (nicht zwingend, da ALTER TABLE FK komplex ist)
+            conn.commit()
+
         # Tabelle für Aufgaben mit zusätzlichen Feldern
         cur.execute(
             """
@@ -69,6 +100,15 @@ def init_db():
             )
             """
         )
+
+        # Prüfen, ob Spalten assignee/priority existieren (Migration für alte DBs)
+        cur.execute("PRAGMA table_info(tasks)")
+        task_cols = [row[1] for row in cur.fetchall()]
+        if 'assignee' not in task_cols:
+            cur.execute("ALTER TABLE tasks ADD COLUMN assignee TEXT")
+        if 'priority' not in task_cols:
+            cur.execute("ALTER TABLE tasks ADD COLUMN priority TEXT")
+
         conn.commit()
 
 
@@ -88,6 +128,9 @@ class ProjectHandler(BaseHTTPRequestHandler):
         """Behandelt OPTIONS-Anfragen für CORS."""
         self._set_headers()
 
+    # ----------------------
+    #       GET (API)
+    # ----------------------
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -96,6 +139,50 @@ class ProjectHandler(BaseHTTPRequestHandler):
         if path.startswith('/api/'):
             parts = path.strip('/').split('/')  # z.B. ['api','projects','1','tasks']
 
+            # ---- Customers ----
+            # /api/customers
+            if len(parts) == 2 and parts[1] == 'customers':
+                with sqlite3.connect(DB_FILE) as conn:
+                    conn.execute('PRAGMA foreign_keys = ON')
+                    conn.row_factory = sqlite3.Row
+                    rows = conn.execute('SELECT * FROM customers').fetchall()
+                    data = [dict(row) for row in rows]
+                self._set_headers()
+                self.wfile.write(json.dumps(data).encode())
+                return
+
+            # /api/customers/<id>
+            if len(parts) == 3 and parts[1] == 'customers' and parts[2].isdigit():
+                customer_id = parts[2]
+                with sqlite3.connect(DB_FILE) as conn:
+                    conn.execute('PRAGMA foreign_keys = ON')
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute(
+                        'SELECT * FROM customers WHERE id=?', (customer_id,)
+                    ).fetchone()
+                    if row:
+                        self._set_headers()
+                        self.wfile.write(json.dumps(dict(row)).encode())
+                    else:
+                        self._set_headers(404)
+                        self.wfile.write(json.dumps({'error': 'Kunde nicht gefunden'}).encode())
+                return
+
+            # /api/customers/<id>/projects -> alle Projekte für diesen Kunden
+            if len(parts) == 4 and parts[1] == 'customers' and parts[2].isdigit() and parts[3] == 'projects':
+                customer_id = parts[2]
+                with sqlite3.connect(DB_FILE) as conn:
+                    conn.execute('PRAGMA foreign_keys = ON')
+                    conn.row_factory = sqlite3.Row
+                    rows = conn.execute(
+                        'SELECT * FROM projects WHERE customer_id=?', (customer_id,)
+                    ).fetchall()
+                    data = [dict(row) for row in rows]
+                self._set_headers()
+                self.wfile.write(json.dumps(data).encode())
+                return
+
+            # ---- Projects ----
             # /api/projects
             if len(parts) == 2 and parts[1] == 'projects':
                 with sqlite3.connect(DB_FILE) as conn:
@@ -138,6 +225,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(data).encode())
                 return
 
+            # ---- Tasks ----
             # /api/tasks
             if len(parts) == 2 and parts[1] == 'tasks':
                 # optionaler Statusfilter via Query
@@ -185,6 +273,9 @@ class ProjectHandler(BaseHTTPRequestHandler):
         # kein API-Pfad -> statische Datei
         self.serve_static(path)
 
+    # ----------------------
+    #       POST (API)
+    # ----------------------
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -195,11 +286,39 @@ class ProjectHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             data = {}
 
-        # /api/projects -> neues Projekt anlegen
-        if path == '/api/projects':
+        # ---- Kunden anlegen: /api/customers ----
+        if path == '/api/customers':
             fields = (
                 data.get('name'),
-                data.get('customer'),
+                data.get('contact_person'),
+                data.get('email'),
+                data.get('phone'),
+                data.get('address'),
+                data.get('design_note'),
+            )
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.execute('PRAGMA foreign_keys = ON')
+                cur = conn.cursor()
+                cur.execute(
+                    'INSERT INTO customers '
+                    '(name, contact_person, email, phone, address, design_note) '
+                    'VALUES (?, ?, ?, ?, ?, ?)',
+                    fields
+                )
+                conn.commit()
+                new_id = cur.lastrowid
+                row = cur.execute('SELECT * FROM customers WHERE id=?', (new_id,)).fetchone()
+                data_out = dict(zip([d[0] for d in cur.description], row))
+            self._set_headers(201)
+            self.wfile.write(json.dumps(data_out).encode())
+            return
+
+        # ---- Projekte anlegen: /api/projects ----
+        if path == '/api/projects':
+            customer_id = data.get('customer_id')
+            fields = (
+                data.get('name'),
+                data.get('customer'),   # Text-Feld (z.B. Kundenname Anzeige)
                 data.get('fair'),
                 data.get('size'),
                 data.get('date'),
@@ -207,14 +326,15 @@ class ProjectHandler(BaseHTTPRequestHandler):
                 data.get('status'),
                 data.get('nextStep'),
                 data.get('dueDate'),
+                customer_id
             )
             with sqlite3.connect(DB_FILE) as conn:
                 conn.execute('PRAGMA foreign_keys = ON')
                 cur = conn.cursor()
                 cur.execute(
                     'INSERT INTO projects '
-                    '(name, customer, fair, size, date, priority, status, nextStep, dueDate) '
-                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    '(name, customer, fair, size, date, priority, status, nextStep, dueDate, customer_id) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     fields
                 )
                 conn.commit()
@@ -225,7 +345,7 @@ class ProjectHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(data_out).encode())
             return
 
-        # /api/projects/<id>/tasks -> neue Aufgabe für Projekt
+        # ---- Aufgaben anlegen: /api/projects/<id>/tasks ----
         if path.startswith('/api/projects') and path.endswith('/tasks'):
             parts = path.strip('/').split('/')
             if len(parts) == 4 and parts[1] == 'projects' and parts[2].isdigit():
@@ -257,6 +377,9 @@ class ProjectHandler(BaseHTTPRequestHandler):
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
 
+    # ----------------------
+    #       PUT (API)
+    # ----------------------
     def do_PUT(self):
         parsed = urlparse(self.path)
         parts = parsed.path.strip('/').split('/')
@@ -267,11 +390,42 @@ class ProjectHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             data = {}
 
+        # Kunde aktualisieren: /api/customers/<id>
+        if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'customers' and parts[2].isdigit():
+            customer_id = parts[2]
+            allowed = ['name', 'contact_person', 'email', 'phone', 'address', 'design_note']
+            set_parts = []
+            values = []
+            for key in allowed:
+                if key in data:
+                    set_parts.append(f'{key}=?')
+                    values.append(data[key])
+            if set_parts:
+                values.append(customer_id)
+                with sqlite3.connect(DB_FILE) as conn:
+                    conn.execute('PRAGMA foreign_keys = ON')
+                    cur = conn.cursor()
+                    cur.execute(
+                        f'UPDATE customers SET {", ".join(set_parts)} WHERE id=?',
+                        values
+                    )
+                    conn.commit()
+                    row = cur.execute(
+                        'SELECT * FROM customers WHERE id=?', (customer_id,)
+                    ).fetchone()
+                    if row:
+                        self._set_headers()
+                        self.wfile.write(json.dumps(dict(zip([d[0] for d in cur.description], row))).encode())
+                        return
+            self._set_headers(404)
+            self.wfile.write(json.dumps({'error': 'Kunde nicht gefunden oder keine Felder geändert'}).encode())
+            return
+
         # Projekt aktualisieren: /api/projects/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'projects' and parts[2].isdigit():
             project_id = parts[2]
             allowed = ['name', 'customer', 'fair', 'size', 'date', 'priority',
-                       'status', 'nextStep', 'dueDate']
+                       'status', 'nextStep', 'dueDate', 'customer_id']
             set_parts = []
             values = []
             for key in allowed:
@@ -335,9 +489,27 @@ class ProjectHandler(BaseHTTPRequestHandler):
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
 
+    # ----------------------
+    #      DELETE (API)
+    # ----------------------
     def do_DELETE(self):
         parsed = urlparse(self.path)
         parts = parsed.path.strip('/').split('/')
+
+        # Kunde löschen: /api/customers/<id>
+        if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'customers' and parts[2].isdigit():
+            customer_id = parts[2]
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.execute('PRAGMA foreign_keys = ON')
+                cur = conn.cursor()
+                cur.execute('DELETE FROM customers WHERE id=?', (customer_id,))
+                conn.commit()
+                if cur.rowcount:
+                    self._set_headers(204, 'text/plain')
+                    return
+            self._set_headers(404)
+            self.wfile.write(json.dumps({'error': 'Kunde nicht gefunden'}).encode())
+            return
 
         # Projekt löschen: /api/projects/<id>
         if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'projects' and parts[2].isdigit():
@@ -373,6 +545,9 @@ class ProjectHandler(BaseHTTPRequestHandler):
         self._set_headers(404)
         self.wfile.write(json.dumps({'error': 'Pfad nicht gefunden'}).encode())
 
+    # ----------------------
+    #    Static File Serving
+    # ----------------------
     def serve_static(self, path: str):
         """Liefert statische Dateien (HTML, CSS, JS) aus dem Projektverzeichnis aus."""
         # root path -> index.html
